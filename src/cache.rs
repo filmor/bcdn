@@ -30,15 +30,12 @@ impl Cache {
     }
 
     async fn cache<'a>(&'a mut self, name: &str) -> CacheResult<'a> {
-        let mut url = self.base.clone();
-        url.path_segments_mut().unwrap().push(name);
-        let mut path = self.path.clone();
-        path.push(name);
+        let url = self.base.join(name).unwrap();
+        let path = self.path.join(name);
 
         match download(&self.client, url, &path).await {
             Ok(manifest) => {
-                let mut digest_path = self.path.clone();
-                digest_path.push(format!(".{}.digest", name));
+                let digest_path = self.path.join(format!(".{}.digest", name));
                 let file = fs::File::create(digest_path).unwrap();
                 serde_json::to_writer_pretty(file, &manifest).unwrap();
 

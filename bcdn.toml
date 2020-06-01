@@ -1,0 +1,4 @@
+bind = "cdn.example.com"
+root_path = "./cache"
+
+[entries]
