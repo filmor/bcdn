@@ -1,10 +1,13 @@
+use crate::download::{download, DownloadError};
+use crate::manifest::Manifest;
+use reqwest::Client;
 use std::collections::HashMap;
+use std::fs;
 use std::path::PathBuf;
 use url::Url;
 
-use crate::manifest::Manifest;
-
 pub struct Cache {
+    client: Client,
     name: String,
     base: Url,
     path: PathBuf,
@@ -25,10 +28,33 @@ impl Cache {
             CacheResult::NotCached
         }
     }
+
+    async fn cache<'a>(&'a mut self, name: &str) -> CacheResult<'a> {
+        let mut url = self.base.clone();
+        url.path_segments_mut().unwrap().push(name);
+        let mut path = self.path.clone();
+        path.push(name);
+
+        match download(&self.client, url, &path).await {
+            Ok(manifest) => {
+                let mut digest_path = self.path.clone();
+                digest_path.push(format!(".{}.digest", name));
+                let file = fs::File::create(digest_path).unwrap();
+                serde_json::to_writer_pretty(file, &manifest).unwrap();
+
+                self.items.insert(name.to_owned(), manifest);
+
+                CacheResult::Ok(&self.items[name])
+            }
+            Err(err) => CacheResult::DownloadError(err),
+        }
+    }
 }
 
+#[derive(Debug)]
 enum CacheResult<'a> {
     Ok(&'a Manifest),
+    DownloadError(DownloadError),
     InWork,
     NotCached,
 }

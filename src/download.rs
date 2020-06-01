@@ -8,7 +8,7 @@ use std::path::Path;
 use thiserror::Error;
 use url::Url;
 
-async fn download<P>(client: &Client, url: Url, path: P) -> Result<Manifest, DownloadError>
+pub async fn download<P>(client: &Client, url: Url, path: P) -> Result<Manifest, DownloadError>
 where
     P: AsRef<Path>,
 {
@@ -39,7 +39,7 @@ where
 }
 
 #[derive(Error, Debug)]
-enum DownloadError {
+pub enum DownloadError {
     #[error("IO error")]
     IoError(#[from] std::io::Error),
 

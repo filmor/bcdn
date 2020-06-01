@@ -1,10 +1,10 @@
 mod cache;
-mod cache_item;
 mod config;
 mod download;
 mod hash_serde;
 mod manager;
 mod manifest;
+mod server;
 
 use crate::config::Config;
 use crate::manager::CacheManager;
