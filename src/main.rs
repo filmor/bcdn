@@ -2,18 +2,18 @@ mod cache;
 mod config;
 mod download;
 mod hash_serde;
-mod manager;
 mod manifest;
 mod server;
 
+use crate::cache::Cache;
 use crate::config::Config;
-use crate::manager::CacheManager;
 use clap::{App, Arg, SubCommand};
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use tokio::runtime::Runtime;
 use warp;
 use warp::Filter;
-use tokio::runtime::Runtime;
 
 fn main() -> Result<(), std::io::Error> {
     let m = App::new("bcdn")
@@ -33,20 +33,35 @@ fn main() -> Result<(), std::io::Error> {
     let config: Config = toml::from_str(&config)?;
 
     match m.subcommand() {
-        ("run", sub_app) => { run(config, sub_app); }
+        ("run", sub_app) => {
+            run(config, sub_app);
+        }
         _ => (),
     }
 
     Ok(())
 }
 
-fn run(config: Config, matches: Option<&clap::ArgMatches>) -> Result<(), Box<dyn std::error::Error>> {
+fn run(
+    config: Config,
+    matches: Option<&clap::ArgMatches>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let root_path = Path::new(&config.root_path);
-    let man = CacheManager::new();
+    let mut caches = HashMap::new();
+
+    for name in config.entries.keys() {
+        let cache = Cache::new(name, &config);
+        caches.insert(name, cache);
+    }
 
     let mut rt = Runtime::new()?;
     rt.block_on(async {
-        let routes = warp::any().map(|| "Hello world!");
+        let data = warp::path!("data" / "v1" / String / String)
+            .and(warp::get())
+            .map(|entry, name| format!("Entry: {} Name: {}", entry, name));
+
+        let routes = data;
+
         warp::serve(routes).run(([0, 0, 0, 0], 1337)).await;
     });
 

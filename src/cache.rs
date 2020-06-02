@@ -1,9 +1,10 @@
+use crate::config::Config;
 use crate::download::{download, DownloadError};
 use crate::manifest::Manifest;
 use reqwest::Client;
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use url::Url;
 
 pub struct Cache {
@@ -16,7 +17,19 @@ pub struct Cache {
 }
 
 impl Cache {
-    fn get<'a>(&'a self, name: &str) -> CacheResult<'a> {
+    pub fn new(name: &str, config: &Config) -> Self {
+        let entry = &config.entries[name];
+        Cache {
+            client: Client::new(),
+            name: name.to_owned(),
+            base: Url::parse(&entry.base_url).unwrap(),
+            path: Path::new(&config.root_path).join(name).to_owned(),
+            items: HashMap::new(),
+            in_work: None,
+        }
+    }
+
+    pub fn get<'a>(&'a self, name: &str) -> CacheResult<'a> {
         if let Some(in_work) = &self.in_work {
             if in_work == name {
                 return CacheResult::InWork;
@@ -29,7 +42,7 @@ impl Cache {
         }
     }
 
-    async fn cache<'a>(&'a mut self, name: &str) -> CacheResult<'a> {
+    pub async fn cache<'a>(&'a mut self, name: &str) -> CacheResult<'a> {
         let url = self.base.join(name).unwrap();
         let path = self.path.join(name);
 

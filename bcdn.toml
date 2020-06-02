@@ -1,4 +1,5 @@
 bind = "cdn.example.com"
 root_path = "./cache"
 
-[entries]
+[entries.nukular]
+base_url = "https://cdn.stuhtmedia.de/radio_nukular/"
