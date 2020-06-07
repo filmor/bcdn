@@ -6,6 +6,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use url::Url;
+use tokio::task;
+use thiserror::Error;
 
 pub struct Cache {
     client: Client,
@@ -59,6 +61,12 @@ impl Cache {
             Err(err) => CacheResult::DownloadError(err),
         }
     }
+}
+
+
+#[derive(Error, Debug)]
+enum CacheError {
+
 }
 
 #[derive(Debug)]

@@ -12,6 +12,13 @@ pub async fn download<P>(client: &Client, url: Url, path: P) -> Result<Manifest,
 where
     P: AsRef<Path>,
 {
+    let path: &Path = path.as_ref();
+    let file_name = if let Some(file_name) = path.file_name() {
+        file_name.to_string_lossy()        
+    } else {
+        return Err(DownloadError::PathError);
+    };
+
     let resp = client.get(url).send().await?;
     let headers = resp.headers();
     let content_type: String = if let Some(value) = headers.get(reqwest::header::CONTENT_TYPE) {
@@ -20,8 +27,11 @@ where
         "unknown".to_owned()
     };
 
+    let download_fn = format!(".{}.download", file_name);
+    let download_path = path.with_file_name(download_fn);
+
     let mut hasher = Hasher::new();
-    let mut output = fs::File::create(&path)?;
+    let mut output = fs::File::create(&download_path)?;
 
     let mut stream = resp.bytes_stream();
 
@@ -33,7 +43,13 @@ where
 
     let hash = hasher.finalize();
 
+    fs::rename(download_path, path)?;
+
     let res = Manifest::new(path, &content_type, hash);
+    let manifest_fn = format!(".{}.manifest", file_name);
+    let manifest_path = path.with_file_name(manifest_fn);
+    let manifest_str = serde_json::to_string_pretty(&res).unwrap();
+    fs::write(&manifest_path, manifest_str)?;
 
     Ok(res)
 }
@@ -45,4 +61,7 @@ pub enum DownloadError {
 
     #[error("HTTP error")]
     RequestError(#[from] reqwest::Error),
+
+    #[error("Path error")]
+    PathError,
 }
