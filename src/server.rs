@@ -1,6 +1,6 @@
 use crate::cache::{Cache, CacheResult};
 use crate::config::Config;
-use actix_web::{web, App, Either, HttpResponse, HttpServer, Responder};
+use actix_web::{http, web, App, Either, HttpResponse, HttpServer, Responder};
 use clap;
 
 #[actix_rt::main]
@@ -29,8 +29,17 @@ fn configure(config: &Config, cfg: &mut web::ServiceConfig) {
 }
 
 async fn data(path: web::Path<String>, cache: web::Data<Cache>) -> impl Responder {
-    match cache.as_ref().get(path.as_ref()) {
+    match cache.as_ref().get(path.as_ref()).await {
         CacheResult::Ok(manifest) => Either::A(manifest.serve()),
+        CacheResult::NotCached { redirect, in_work } => {
+            if !in_work {}
+
+            Either::B(
+                HttpResponse::TemporaryRedirect()
+                    .header(http::header::LOCATION, redirect.to_string())
+                    .body(format!("In work: {}", in_work)),
+            )
+        }
         _ => Either::B(HttpResponse::NotFound().body("Not found")),
     }
 }

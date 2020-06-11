@@ -19,7 +19,9 @@ where
         return Err(DownloadError::PathError);
     };
 
-    let resp = client.get(url).send().await?;
+    let resp = client.get(url.clone()).send().await?;
+    // TODO: Check for 200 OK
+
     let headers = resp.headers();
     let content_type: String = if let Some(value) = headers.get(reqwest::header::CONTENT_TYPE) {
         value.to_str().unwrap().to_owned()
@@ -30,7 +32,10 @@ where
     let download_fn = format!(".{}.download", file_name);
     let download_path = path.with_file_name(download_fn);
 
+    log::debug!("Downloading {} to {}", url, download_path.to_string_lossy());
+
     let mut hasher = Hasher::new();
+    fs::create_dir_all(path.parent().unwrap())?;
     let mut output = fs::File::create(&download_path)?;
 
     let mut stream = resp.bytes_stream();
@@ -46,11 +51,6 @@ where
     fs::rename(download_path, path)?;
 
     let res = Manifest::new(path, &content_type, hash);
-    let manifest_fn = format!(".{}.manifest", file_name);
-    let manifest_path = path.with_file_name(manifest_fn);
-    let manifest_str = serde_json::to_string_pretty(&res).unwrap();
-    fs::write(&manifest_path, manifest_str)?;
-
     Ok(res)
 }
 

@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use tokio::sync::RwLock;
 use url::Url;
 
 pub struct Cache {
@@ -13,8 +14,8 @@ pub struct Cache {
     name: String,
     base: Url,
     path: PathBuf,
-    items: HashMap<String, Manifest>,
-    in_work: Option<String>,
+    items: RwLock<HashMap<String, Manifest>>,
+    in_work: RwLock<Option<String>>,
 }
 
 impl Cache {
@@ -25,33 +26,22 @@ impl Cache {
             name: name.to_owned(),
             base: Url::parse(&entry.base_url).unwrap(),
             path: Path::new(&config.root_path).join(name).to_owned(),
-            items: HashMap::new(),
-            in_work: None,
+            items: RwLock::new(HashMap::new()),
+            in_work: RwLock::new(None),
         }
     }
 
-    pub fn get<'a>(&'a self, name: &str) -> CacheResult<'a> {
-        let redirect = self.base.join(name).unwrap();
+    pub async fn get(&self, name: &str) -> CacheResult {
+        if let Some(manifest) = self.items.read().await.get(name).cloned() {
+            return CacheResult::Ok(manifest);
+        }
 
-        if let Some(in_work) = &self.in_work {
-            if in_work == name {
-                return CacheResult::NotCached {
-                    redirect,
-                    in_work: true,
-                };
-            }
-        }
-        if let Some(ref manifest) = self.items.get(name) {
-            CacheResult::Ok(manifest)
-        } else {
-            CacheResult::NotCached {
-                redirect,
-                in_work: false,
-            }
-        }
+        // TODO let redirect = self.base.join(name).unwrap();
+
+        self.cache(name).await
     }
 
-    pub async fn cache<'a>(&'a mut self, name: &str) -> CacheResult<'a> {
+    pub async fn cache(&self, name: &str) -> CacheResult {
         let url = self.base.join(name).unwrap();
         let path = self.path.join(name);
 
@@ -61,11 +51,15 @@ impl Cache {
                 let file = fs::File::create(digest_path).unwrap();
                 serde_json::to_writer_pretty(file, &manifest).unwrap();
 
-                self.items.insert(name.to_owned(), manifest);
+                let mut items = self.items.write().await;
+                items.insert(name.to_owned(), manifest.clone());
 
-                CacheResult::Ok(&self.items[name])
+                CacheResult::Ok(manifest)
             }
-            Err(err) => CacheResult::DownloadError(err),
+            Err(err) => {
+                log::error!("Download error: {:?}", err);
+                CacheResult::DownloadError(err)
+            }
         }
     }
 }
@@ -74,8 +68,8 @@ impl Cache {
 enum CacheError {}
 
 #[derive(Debug)]
-pub enum CacheResult<'a> {
-    Ok(&'a Manifest),
+pub enum CacheResult {
+    Ok(Manifest),
     DownloadError(DownloadError),
     NotCached { redirect: Url, in_work: bool },
 }
