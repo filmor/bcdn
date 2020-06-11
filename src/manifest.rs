@@ -47,6 +47,14 @@ impl Manifest {
             Ok(())
         }
     }
+
+    pub fn serve(&self) -> impl actix_web::Responder {
+        use actix_files::NamedFile;
+
+        NamedFile::open(&self.path)
+            .unwrap()
+            .set_content_type(self.content_type.parse().unwrap())
+    }
 }
 
 #[derive(Error, Debug)]

@@ -5,9 +5,8 @@ use reqwest::Client;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use url::Url;
-use tokio::task;
 use thiserror::Error;
+use url::Url;
 
 pub struct Cache {
     client: Client,
@@ -32,15 +31,23 @@ impl Cache {
     }
 
     pub fn get<'a>(&'a self, name: &str) -> CacheResult<'a> {
+        let redirect = self.base.join(name).unwrap();
+
         if let Some(in_work) = &self.in_work {
             if in_work == name {
-                return CacheResult::InWork;
+                return CacheResult::NotCached {
+                    redirect,
+                    in_work: true,
+                };
             }
         }
         if let Some(ref manifest) = self.items.get(name) {
             CacheResult::Ok(manifest)
         } else {
-            CacheResult::NotCached
+            CacheResult::NotCached {
+                redirect,
+                in_work: false,
+            }
         }
     }
 
@@ -63,16 +70,12 @@ impl Cache {
     }
 }
 
-
 #[derive(Error, Debug)]
-enum CacheError {
-
-}
+enum CacheError {}
 
 #[derive(Debug)]
-enum CacheResult<'a> {
+pub enum CacheResult<'a> {
     Ok(&'a Manifest),
     DownloadError(DownloadError),
-    InWork,
-    NotCached,
+    NotCached { redirect: Url, in_work: bool },
 }

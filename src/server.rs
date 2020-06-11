@@ -1,50 +1,36 @@
-use crate::cache::Cache;
+use crate::cache::{Cache, CacheResult};
 use crate::config::Config;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use tokio::runtime::Runtime;
-use warp;
-use warp::Filter;
+use actix_web::{web, App, Either, HttpResponse, HttpServer, Responder};
+use clap;
 
-pub fn run(
-    config: Config,
-    _matches: Option<&clap::ArgMatches>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut rt = Runtime::new()?;
-    rt.block_on(run_async(config))
+#[actix_rt::main]
+pub async fn run(config: Config, _matches: Option<&clap::ArgMatches<'_>>) -> std::io::Result<()> {
+    let mut cache_scope = web::scope("/c/v1");
+
+    HttpServer::new(move || {
+        let config = config.clone();
+        App::new().service(web::scope("/c/v1").configure(|cfg| configure(&config, cfg)))
+        // .service(cache_scope)
+    })
+    .bind("127.0.0.1:1337")?
+    .run()
+    .await
 }
 
-async fn run_async(config: Config) -> Result<(), Box<dyn std::error::Error>> {
-    let mut caches: HashMap<String, _> = HashMap::new();
-
-    for name in config.entries.keys() {
+fn configure(config: &Config, cfg: &mut web::ServiceConfig) {
+    for (name, entry) in &config.entries {
         let cache = Cache::new(name, &config);
-        &caches.insert(name.clone(), cache);
+        let own_scope = web::scope(name)
+            .data(cache)
+            .route("/f/{filename}", web::get().to(data));
+
+        cfg.service(own_scope);
     }
+}
 
-    log::info!("Config: {:?}", config);
-    log::info!("Cache keys: {:?}", caches.keys());
-
-    let caches = Arc::new(RwLock::new(caches));
-
-    let data = warp::path!("data" / "v1" / String / String)
-        .and(warp::get())
-        .and(warp::any().map(move || caches.clone()))
-        .and_then(
-            move |entry, name, caches: Arc<RwLock<HashMap<String, _>>>| async move {
-                log::info!("Request for {}/{}", entry, name);
-                if let Some(cache) = caches.read().unwrap().get(&entry) {
-                    let s = format!("Entry: {} Name: {}", &entry, &name).to_owned();
-                    Ok(s)
-                } else {
-                    Err(warp::reject::not_found())
-                }
-            },
-        );
-
-    let routes = data;
-
-    warp::serve(routes).run(([0, 0, 0, 0], 1337)).await;
-
-    Ok(())
+async fn data(path: web::Path<String>, cache: web::Data<Cache>) -> impl Responder {
+    match cache.as_ref().get(path.as_ref()) {
+        CacheResult::Ok(manifest) => Either::A(manifest.serve()),
+        _ => Either::B(HttpResponse::NotFound().body("Not found")),
+    }
 }

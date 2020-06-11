@@ -14,7 +14,7 @@ where
 {
     let path: &Path = path.as_ref();
     let file_name = if let Some(file_name) = path.file_name() {
-        file_name.to_string_lossy()        
+        file_name.to_string_lossy()
     } else {
         return Err(DownloadError::PathError);
     };
