@@ -11,7 +11,7 @@ use url::Url;
 
 pub struct Cache {
     client: Client,
-    name: String,
+    pub name: String,
     base: Url,
     path: PathBuf,
     items: RwLock<HashMap<String, Manifest>>,
@@ -21,11 +21,14 @@ pub struct Cache {
 impl Cache {
     pub fn new(name: &str, config: &Config) -> Self {
         let entry = &config.entries[name];
+        let path = Path::new(&config.cache.root_path).join(name);
+        fs::create_dir_all(&path).unwrap();
+
         Cache {
             client: Client::new(),
             name: name.to_owned(),
             base: Url::parse(&entry.base_url).unwrap(),
-            path: Path::new(&config.root_path).join(name).to_owned(),
+            path,
             items: RwLock::new(HashMap::new()),
             in_work: RwLock::new(None),
         }

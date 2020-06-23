@@ -1,24 +1,25 @@
 use crate::cache::{Cache, CacheResult};
 use crate::config::Config;
 use actix_web::{http, web, App, Either, HttpResponse, HttpServer, Responder};
-use clap;
 
 #[actix_rt::main]
-pub async fn run(config: Config, _matches: Option<&clap::ArgMatches<'_>>) -> std::io::Result<()> {
-    let mut cache_scope = web::scope("/c/v1");
+pub async fn run(config: Config, _matches: &clap::ArgMatches<'_>) -> std::io::Result<()> {
+    let bind = config.proxy.bind.clone();
+
+    log::info!("Starting CDN proxy at {}...", bind);
 
     HttpServer::new(move || {
         let config = config.clone();
         App::new().service(web::scope("/c/v1").configure(|cfg| configure(&config, cfg)))
         // .service(cache_scope)
     })
-    .bind("127.0.0.1:1337")?
+    .bind(bind)?
     .run()
     .await
 }
 
 fn configure(config: &Config, cfg: &mut web::ServiceConfig) {
-    for (name, entry) in &config.entries {
+    for (name, _entry) in &config.entries {
         let cache = Cache::new(name, &config);
         let own_scope = web::scope(name)
             .data(cache)

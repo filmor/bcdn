@@ -1,6 +1,6 @@
 use crate::hash_serde;
 use blake3::{Hash, Hasher};
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};

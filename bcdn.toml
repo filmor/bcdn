@@ -1,5 +1,11 @@
-bind = "cdn.example.com"
+[cache]
+bind = "127.0.0.1:1337"
 root_path = "./cache"
+
+[proxy]
+nodes = [
+    "127.0.0.1:1337"
+]
 
 [entries.nukular]
 base_url = "https://cdn.stuhtmedia.de/radio_nukular/"

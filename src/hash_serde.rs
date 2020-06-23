@@ -1,5 +1,4 @@
 use blake3::Hash;
-use hex;
 
 use serde::de::{Error, Visitor};
 use serde::{Deserializer, Serializer};
