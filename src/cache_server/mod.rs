@@ -1,12 +1,15 @@
-use crate::cache::{Cache, CacheResult};
 use crate::config::Config;
 use actix_web::{http, web, App, Either, HttpResponse, HttpServer, Responder};
 
+mod cache;
+mod download;
+use cache::{Cache, CacheResult};
+
 #[actix_rt::main]
 pub async fn run(config: Config, _matches: &clap::ArgMatches<'_>) -> std::io::Result<()> {
-    let bind = config.proxy.bind.clone();
+    let bind = config.cache.bind.clone();
 
-    log::info!("Starting CDN proxy at {}...", bind);
+    log::info!("Starting cache node at {}...", bind);
 
     HttpServer::new(move || {
         let config = config.clone();

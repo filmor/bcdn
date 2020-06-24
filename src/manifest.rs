@@ -1,4 +1,4 @@
-use crate::hash_serde;
+use crate::util::hash_serde;
 use blake3::{Hash, Hasher};
 use serde::{Deserialize, Serialize};
 use std::fs;

@@ -19,8 +19,7 @@ where
         return Err(DownloadError::PathError);
     };
 
-    let resp = client.get(url.clone()).send().await?
-        .error_for_status()?;
+    let resp = client.get(url.clone()).send().await?.error_for_status()?;
 
     let headers = resp.headers();
     let content_type: String = if let Some(value) = headers.get(reqwest::header::CONTENT_TYPE) {

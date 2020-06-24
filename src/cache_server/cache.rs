@@ -1,5 +1,5 @@
+use super::download::{download, DownloadError};
 use crate::config::Config;
-use crate::download::{download, DownloadError};
 use crate::manifest::Manifest;
 use reqwest::Client;
 use std::collections::HashMap;

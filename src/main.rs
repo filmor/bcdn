@@ -1,12 +1,11 @@
-mod cache;
 mod cache_server;
 mod config;
-mod download;
-mod hash_serde;
 mod manifest;
 mod proxy_server;
+mod util;
 
-use crate::config::Config;
+use config::Config;
+
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::fs;
 use std::path::Path;
