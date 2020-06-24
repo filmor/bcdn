@@ -9,6 +9,8 @@ use thiserror::Error;
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct Manifest {
     version: u32,
+    size: u64,
+
     path: PathBuf,
     content_type: String,
 
@@ -27,9 +29,13 @@ impl Manifest {
     where
         P: AsRef<Path>,
     {
+        let path = path.as_ref().to_path_buf();
+        let m = fs::metadata(&path).unwrap();
+
         Manifest {
             version: 1,
-            path: path.as_ref().to_path_buf(),
+            size: m.len(),
+            path,
             content_type: content_type.to_owned(),
             hash,
         }

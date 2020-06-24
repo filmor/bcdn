@@ -19,8 +19,8 @@ where
         return Err(DownloadError::PathError);
     };
 
-    let resp = client.get(url.clone()).send().await?;
-    // TODO: Check for 200 OK
+    let resp = client.get(url.clone()).send().await?
+        .error_for_status()?;
 
     let headers = resp.headers();
     let content_type: String = if let Some(value) = headers.get(reqwest::header::CONTENT_TYPE) {
@@ -44,6 +44,8 @@ where
         let item = item?;
         hasher.write_all(&item).unwrap();
         output.write_all(&item)?;
+
+        // TODO Return this as a stream as well s.t. we can pass it through
     }
 
     let hash = hasher.finalize();

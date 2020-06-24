@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, Semaphore};
 use url::Url;
 
 pub struct Cache {
@@ -15,7 +15,11 @@ pub struct Cache {
     base: Url,
     path: PathBuf,
     items: RwLock<HashMap<String, Manifest>>,
-    in_work: RwLock<Option<String>>,
+
+    work_sem: Semaphore,
+
+    // TODO Make use of in_work as a Semaphore to limit the number of parallel downloads
+    in_work: RwLock<Vec<String>>,
 }
 
 impl Cache {
@@ -24,13 +28,16 @@ impl Cache {
         let path = Path::new(&config.cache.root_path).join(name);
         fs::create_dir_all(&path).unwrap();
 
+        let max_parallel_downloads = 2;
+
         Cache {
             client: Client::new(),
             name: name.to_owned(),
             base: Url::parse(&entry.base_url).unwrap(),
             path,
             items: RwLock::new(HashMap::new()),
-            in_work: RwLock::new(None),
+            work_sem: Semaphore::new(max_parallel_downloads),
+            in_work: RwLock::new(Vec::new()),
         }
     }
 
