@@ -1,6 +1,7 @@
 use super::download::{download, DownloadError};
 use crate::config::Config;
 use crate::manifest::Manifest;
+use globset::GlobSet;
 use reqwest::Client;
 use std::collections::HashMap;
 use std::fs;
@@ -13,6 +14,7 @@ pub struct Cache {
     client: Client,
     pub name: String,
     base: Url,
+    patterns: GlobSet,
     path: PathBuf,
     items: RwLock<HashMap<String, Manifest>>,
 
@@ -30,25 +32,32 @@ impl Cache {
 
         let max_parallel_downloads = 2;
 
+        let patterns = entry.get_globset().unwrap();
+
         Cache {
             client: Client::new(),
             name: name.to_owned(),
             base: Url::parse(&entry.base_url).unwrap(),
             path,
+            patterns,
             items: RwLock::new(HashMap::new()),
             work_sem: Semaphore::new(max_parallel_downloads),
             in_work: RwLock::new(Vec::new()),
         }
     }
 
-    pub async fn get(&self, name: &str) -> CacheResult {
-        if let Some(manifest) = self.items.read().await.get(name).cloned() {
+    pub async fn get(&self, filename: &str) -> CacheResult {
+        if !self.patterns.is_match(filename) {
+            return CacheResult::NotFound;
+        }
+
+        if let Some(manifest) = self.items.read().await.get(filename).cloned() {
             return CacheResult::Ok(manifest);
         }
 
         // TODO let redirect = self.base.join(name).unwrap();
 
-        self.cache(name).await
+        self.cache(filename).await
     }
 
     pub async fn cache(&self, name: &str) -> CacheResult {
@@ -82,4 +91,5 @@ pub enum CacheResult {
     Ok(Manifest),
     DownloadError(DownloadError),
     NotCached { redirect: Url, in_work: bool },
+    NotFound,
 }
