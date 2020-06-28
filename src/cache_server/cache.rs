@@ -1,6 +1,6 @@
 use super::download::{download, DownloadError};
 use crate::config::Config;
-use crate::manifest::Manifest;
+use crate::digest::Digest;
 use globset::GlobSet;
 use reqwest::Client;
 use std::collections::HashMap;
@@ -16,7 +16,7 @@ pub struct Cache {
     base: Url,
     patterns: GlobSet,
     path: PathBuf,
-    items: RwLock<HashMap<String, Manifest>>,
+    items: RwLock<HashMap<String, Digest>>,
     // work_sem: Semaphore,
 
     // TODO Make use of in_work as a Semaphore to limit the number of parallel downloads
@@ -51,8 +51,8 @@ impl Cache {
             return CacheResult::NotFound;
         }
 
-        if let Some(manifest) = self.items.read().await.get(filename).cloned() {
-            return CacheResult::Ok(manifest);
+        if let Some(digest) = self.items.read().await.get(filename).cloned() {
+            return CacheResult::Ok(digest);
         }
 
         self.cache(filename).await
@@ -63,13 +63,13 @@ impl Cache {
         let path = self.path.join(name);
 
         match download(&self.client, url, &path).await {
-            Ok(manifest) => {
-                manifest.write(&self.path).unwrap();
+            Ok(digest) => {
+                digest.write(&self.path).unwrap();
 
                 let mut items = self.items.write().await;
-                items.insert(name.to_owned(), manifest.clone());
+                items.insert(name.to_owned(), digest.clone());
 
-                CacheResult::Ok(manifest)
+                CacheResult::Ok(digest)
             }
             Err(err) => {
                 log::error!("Download error: {:?}", err);
@@ -84,13 +84,13 @@ enum CacheError {}
 
 #[derive(Debug)]
 pub enum CacheResult {
-    Ok(Manifest),
+    Ok(Digest),
     DownloadError(DownloadError),
     NotCached { redirect: Url, in_work: bool },
     NotFound,
 }
 
-fn preprocess_existing<P: AsRef<Path>>(root: P, glob: &GlobSet) -> HashMap<String, Manifest> {
+fn preprocess_existing<P: AsRef<Path>>(root: P, glob: &GlobSet) -> HashMap<String, Digest> {
     let root = root.as_ref();
     let mut res = HashMap::new();
 
@@ -98,12 +98,12 @@ fn preprocess_existing<P: AsRef<Path>>(root: P, glob: &GlobSet) -> HashMap<Strin
         let path = entry.unwrap().path();
 
         if glob.is_match(&path) {
-            let manifest = Manifest::for_path(&path).unwrap();
+            let digest = Digest::for_path(&path).unwrap();
             log::info!("Found existing file at {}", path.to_string_lossy());
-            manifest.verify().unwrap();
+            digest.verify().unwrap();
 
-            let file_name = manifest.file_name.clone();
-            res.insert(file_name, manifest);
+            let file_name = digest.file_name.clone();
+            res.insert(file_name, digest);
         }
     }
 

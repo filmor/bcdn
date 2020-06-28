@@ -1,6 +1,6 @@
 mod cache_server;
 mod config;
-mod manifest;
+mod digest;
 mod proxy_server;
 mod util;
 

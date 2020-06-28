@@ -34,7 +34,7 @@ fn configure(config: &Config, cfg: &mut web::ServiceConfig) {
 
 async fn data(path: web::Path<String>, cache: web::Data<Cache>) -> impl Responder {
     match cache.as_ref().get(path.as_ref()).await {
-        CacheResult::Ok(manifest) => Either::A(manifest.serve()),
+        CacheResult::Ok(digest) => Either::A(digest.serve()),
         CacheResult::NotCached { redirect, in_work } => {
             if !in_work {}
 

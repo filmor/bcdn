@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
-pub struct Manifest {
+pub struct Digest {
     version: u32,
     pub size: u64,
 
@@ -21,37 +21,37 @@ pub struct Manifest {
     root: PathBuf,
 }
 
-impl Manifest {
-    fn from_file<P: AsRef<Path>>(path: P) -> Result<Manifest, ManifestError> {
+impl Digest {
+    fn from_file<P: AsRef<Path>>(path: P) -> Result<Digest, DigestError> {
         let path = path.as_ref();
-        let root = path.parent().ok_or(ManifestError::FileNotFound)?.to_owned();
+        let root = path.parent().ok_or(DigestError::FileNotFound)?.to_owned();
 
         let text = std::fs::read_to_string(path)?;
-        let mut manifest: Manifest = serde_json::from_str(&text)?;
+        let mut digest: Digest = serde_json::from_str(&text)?;
 
-        manifest.root = root;
+        digest.root = root;
 
-        Ok(manifest)
+        Ok(digest)
     }
 
-    pub fn for_path<P: AsRef<Path>>(path: P) -> Result<Manifest, ManifestError> {
+    pub fn for_path<P: AsRef<Path>>(path: P) -> Result<Digest, DigestError> {
         let path = path.as_ref();
         let file_name = path
             .file_name()
-            .ok_or(ManifestError::FileNotFound)?
+            .ok_or(DigestError::FileNotFound)?
             .to_str()
-            .ok_or(ManifestError::InvalidFileName)?;
+            .ok_or(DigestError::InvalidFileName)?;
 
         let digest_path = format!("{}.digest", file_name);
 
         Self::from_file(
             path.parent()
-                .ok_or(ManifestError::FileNotFound)?
+                .ok_or(DigestError::FileNotFound)?
                 .join(digest_path),
         )
     }
 
-    pub fn write<P: AsRef<Path>>(&self, root: P) -> Result<(), ManifestError> {
+    pub fn write<P: AsRef<Path>>(&self, root: P) -> Result<(), DigestError> {
         let root = root.as_ref();
 
         let digest_filename = format!("{}.digest", self.file_name);
@@ -73,7 +73,7 @@ impl Manifest {
 
         let root = path.parent().unwrap().to_owned();
 
-        Manifest {
+        Digest {
             version: 1,
             size: m.len(),
             file_name,
@@ -83,14 +83,14 @@ impl Manifest {
         }
     }
 
-    pub fn verify(&self) -> Result<(), ManifestError> {
+    pub fn verify(&self) -> Result<(), DigestError> {
         let mut hasher = Hasher::new();
         let mut file = io::BufReader::new(fs::File::open(self.get_file_path())?);
         io::copy(&mut file, &mut hasher)?;
 
         let hash = hasher.finalize();
         if hash != self.hash {
-            Err(ManifestError::VerifyError)
+            Err(DigestError::VerifyError)
         } else {
             Ok(())
         }
@@ -118,19 +118,19 @@ fn default_root() -> PathBuf {
 }
 
 #[derive(Error, Debug)]
-pub enum ManifestError {
+pub enum DigestError {
     #[error(transparent)]
     IoError(#[from] std::io::Error),
 
     #[error(transparent)]
     JsonError(#[from] serde_json::Error),
 
-    #[error("File to create manifest from does not exist")]
+    #[error("File to create digest from does not exist")]
     FileNotFound,
 
-    #[error("File name to create manifest from is not valid")]
+    #[error("File name to create digest from is not valid")]
     InvalidFileName,
 
-    #[error("Incorrect hash in manifest")]
+    #[error("Incorrect hash in digest")]
     VerifyError,
 }

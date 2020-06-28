@@ -1,4 +1,4 @@
-use crate::manifest::Manifest;
+use crate::digest::Digest;
 use blake3::Hasher;
 use futures_util::StreamExt;
 use reqwest::Client;
@@ -8,7 +8,7 @@ use std::path::Path;
 use thiserror::Error;
 use url::Url;
 
-pub async fn download<P>(client: &Client, url: Url, path: P) -> Result<Manifest, DownloadError>
+pub async fn download<P>(client: &Client, url: Url, path: P) -> Result<Digest, DownloadError>
 where
     P: AsRef<Path>,
 {
@@ -51,7 +51,7 @@ where
 
     fs::rename(download_path, path)?;
 
-    let res = Manifest::new(path, &content_type, hash);
+    let res = Digest::new(path, &content_type, hash);
     Ok(res)
 }
 
