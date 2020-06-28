@@ -17,11 +17,10 @@ pub struct Cache {
     patterns: GlobSet,
     path: PathBuf,
     items: RwLock<HashMap<String, Manifest>>,
-
-    work_sem: Semaphore,
+    // work_sem: Semaphore,
 
     // TODO Make use of in_work as a Semaphore to limit the number of parallel downloads
-    in_work: RwLock<Vec<String>>,
+    // in_work: RwLock<Vec<String>>,
 }
 
 impl Cache {
@@ -29,10 +28,11 @@ impl Cache {
         let entry = &config.entries[name];
         let path = Path::new(&config.cache.root_path).join(name);
         fs::create_dir_all(&path).unwrap();
+        let patterns = entry.get_globset().unwrap();
+
+        let items = preprocess_existing(&path, &patterns);
 
         let max_parallel_downloads = 2;
-
-        let patterns = entry.get_globset().unwrap();
 
         Cache {
             client: Client::new(),
@@ -40,9 +40,9 @@ impl Cache {
             base: Url::parse(&entry.base_url).unwrap(),
             path,
             patterns,
-            items: RwLock::new(HashMap::new()),
-            work_sem: Semaphore::new(max_parallel_downloads),
-            in_work: RwLock::new(Vec::new()),
+            items: RwLock::new(items),
+            // work_sem: Semaphore::new(max_parallel_downloads),
+            // in_work: RwLock::new(Vec::new()),
         }
     }
 
@@ -55,8 +55,6 @@ impl Cache {
             return CacheResult::Ok(manifest);
         }
 
-        // TODO let redirect = self.base.join(name).unwrap();
-
         self.cache(filename).await
     }
 
@@ -66,9 +64,7 @@ impl Cache {
 
         match download(&self.client, url, &path).await {
             Ok(manifest) => {
-                let digest_path = self.path.join(format!(".{}.digest", name));
-                let file = fs::File::create(digest_path).unwrap();
-                serde_json::to_writer_pretty(file, &manifest).unwrap();
+                manifest.write(&self.path).unwrap();
 
                 let mut items = self.items.write().await;
                 items.insert(name.to_owned(), manifest.clone());
@@ -92,4 +88,24 @@ pub enum CacheResult {
     DownloadError(DownloadError),
     NotCached { redirect: Url, in_work: bool },
     NotFound,
+}
+
+fn preprocess_existing<P: AsRef<Path>>(root: P, glob: &GlobSet) -> HashMap<String, Manifest> {
+    let root = root.as_ref();
+    let mut res = HashMap::new();
+
+    for entry in fs::read_dir(&root).unwrap() {
+        let path = entry.unwrap().path();
+
+        if glob.is_match(&path) {
+            let manifest = Manifest::for_path(&path).unwrap();
+            log::info!("Found existing file at {}", path.to_string_lossy());
+            manifest.verify().unwrap();
+
+            let file_name = manifest.file_name.clone();
+            res.insert(file_name, manifest);
+        }
+    }
+
+    res
 }

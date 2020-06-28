@@ -5,6 +5,7 @@ use url::Url;
 pub struct CacheInfo {
     nodes: Vec<NodeCacheInfo>,
 
+    name: String,
     patterns: GlobSet,
 }
 
@@ -29,8 +30,13 @@ impl CacheInfo {
 
         let entry = &config.entries[name];
         let patterns = entry.get_globset().unwrap();
+        let name = name.to_owned();
 
-        CacheInfo { nodes, patterns }
+        CacheInfo {
+            name,
+            nodes,
+            patterns,
+        }
     }
 
     pub fn get_redirect(&self, filename: &str) -> Option<Url> {
@@ -45,6 +51,8 @@ impl CacheInfo {
 
         let node = &self.nodes[dist.sample(&mut rng)];
 
-        Some(node.url.join(filename).unwrap())
+        let path = format!("c/v1/{}/f/{}", self.name, filename);
+
+        Some(node.url.join(&path).unwrap())
     }
 }

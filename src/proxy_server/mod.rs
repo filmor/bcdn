@@ -1,5 +1,5 @@
 use crate::config::Config;
-use actix_web::{http, web, App, HttpResponse, HttpServer, Responder, Either};
+use actix_web::{http, web, App, Either, HttpResponse, HttpServer, Responder};
 mod cache_info;
 use cache_info::CacheInfo;
 
@@ -32,8 +32,6 @@ fn configure(config: &Config, cfg: &mut web::ServiceConfig) {
 
 async fn data(path: web::Path<String>, cache_info: web::Data<CacheInfo>) -> impl Responder {
     let cache_info = cache_info.as_ref();
-
-    let redirect = cache_info.get_redirect(path.as_ref());
 
     if let Some(redirect) = cache_info.get_redirect(path.as_ref()) {
         Either::A(
