@@ -1,4 +1,4 @@
-use super::download::{download, DownloadError};
+use super::download::{Downloader, DownloadError};
 use crate::config::Config;
 use crate::digest::Digest;
 use globset::GlobSet;
@@ -62,7 +62,7 @@ impl Cache {
         let url = self.base.join(name).unwrap();
         let path = self.path.join(name);
 
-        match download(&self.client, url, &path).await {
+        match Downloader::new(&self.client, url, &path).download().await {
             Ok(digest) => {
                 digest.write(&self.path).unwrap();
 
