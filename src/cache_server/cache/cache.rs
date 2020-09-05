@@ -1,13 +1,12 @@
-use super::download::{Downloader, DownloadError};
 use crate::config::Config;
-use crate::digest::Digest;
+use super::Digest;
 use globset::GlobSet;
 use reqwest::Client;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-use tokio::sync::{RwLock, Semaphore};
+use tokio::sync::RwLock;
 use url::Url;
 
 pub struct Cache {
@@ -32,8 +31,6 @@ impl Cache {
 
         let items = preprocess_existing(&path, &patterns);
 
-        let max_parallel_downloads = 2;
-
         Cache {
             client: Client::new(),
             name: name.to_owned(),
@@ -41,8 +38,6 @@ impl Cache {
             path,
             patterns,
             items: RwLock::new(items),
-            // work_sem: Semaphore::new(max_parallel_downloads),
-            // in_work: RwLock::new(Vec::new()),
         }
     }
 
@@ -55,28 +50,29 @@ impl Cache {
             return CacheResult::Ok(digest);
         }
 
-        self.cache(filename).await
+        // self.cache(filename).await
+        unimplemented!()
     }
 
-    pub async fn cache(&self, name: &str) -> CacheResult {
-        let url = self.base.join(name).unwrap();
-        let path = self.path.join(name);
+    // pub async fn cache(&self, name: &str) -> CacheResult {
+    //     let url = self.base.join(name).unwrap();
+    //     let path = self.path.join(name);
 
-        match Downloader::new(&self.client, url, &path).download().await {
-            Ok(digest) => {
-                digest.write(&self.path).unwrap();
+    //     match Downloader::new(&self.client, url, &path).download().await {
+    //         Ok(digest) => {
+    //             digest.write(&self.path).unwrap();
 
-                let mut items = self.items.write().await;
-                items.insert(name.to_owned(), digest.clone());
+    //             let mut items = self.items.write().await;
+    //             items.insert(name.to_owned(), digest.clone());
 
-                CacheResult::Ok(digest)
-            }
-            Err(err) => {
-                log::error!("Download error: {:?}", err);
-                CacheResult::DownloadError(err)
-            }
-        }
-    }
+    //             CacheResult::Ok(digest)
+    //         }
+    //         Err(err) => {
+    //             log::error!("Download error: {:?}", err);
+    //             CacheResult::DownloadError(err)
+    //         }
+    //     }
+    // }
 }
 
 #[derive(Error, Debug)]
@@ -85,7 +81,6 @@ enum CacheError {}
 #[derive(Debug)]
 pub enum CacheResult {
     Ok(Digest),
-    DownloadError(DownloadError),
     NotCached { redirect: Url, in_work: bool },
     NotFound,
 }

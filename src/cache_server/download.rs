@@ -1,4 +1,4 @@
-use crate::digest::Digest;
+use super::cache::Digest;
 use blake3::Hasher;
 use futures_util::StreamExt;
 use reqwest::Client;

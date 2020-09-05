@@ -34,11 +34,11 @@ fn configure(config: &Config, cfg: &mut web::ServiceConfig) {
 
 async fn data(path: web::Path<String>, cache: web::Data<Cache>) -> impl Responder {
     match cache.as_ref().get(path.as_ref()).await {
-        CacheResult::Ok(digest) => Either::A(digest.serve()),
+        // CacheResult::Ok(digest) => Either::A(digest.serve()),
         CacheResult::NotCached { redirect, in_work } => {
             if !in_work {}
 
-            Either::B(
+            Either::A(
                 HttpResponse::TemporaryRedirect()
                     .header(http::header::LOCATION, redirect.to_string())
                     .body(format!("In work: {}", in_work)),
