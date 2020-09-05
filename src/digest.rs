@@ -10,6 +10,7 @@ use thiserror::Error;
 pub struct Digest {
     version: u32,
     pub size: u64,
+    pub downloaded: u64,
 
     pub file_name: String,
     pub content_type: String,
@@ -76,6 +77,7 @@ impl Digest {
         Digest {
             version: 1,
             size: m.len(),
+            downloaded: m.len(),
             file_name,
             content_type: content_type.to_owned(),
             hash,
@@ -97,11 +99,11 @@ impl Digest {
     }
 
     pub fn serve(&self) -> impl actix_web::Responder {
-        use actix_files::NamedFile;
+        use crate::util::named_file::NamedFile;
 
         NamedFile::open(self.get_file_path())
             .unwrap()
-            .set_content_type(self.content_type.parse().unwrap())
+           // .set_content_type(self.content_type.parse().unwrap())
     }
 
     pub fn get_file_path(&self) -> PathBuf {
