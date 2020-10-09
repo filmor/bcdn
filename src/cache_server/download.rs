@@ -4,9 +4,41 @@ use futures_util::StreamExt;
 use reqwest::Client;
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::{collections::HashMap, path::{Path, PathBuf}};
 use thiserror::Error;
 use url::Url;
+use tokio::task::{JoinHandle};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+
+struct DownloadKey {
+    cache: String,
+    filename: String,
+}
+
+pub struct DownloadPool {
+    max_count: u32,
+    client: Client,
+    rx: UnboundedReceiver<(DownloadKey, Digest)>,
+    tx: UnboundedSender<(DownloadKey, Digest)>,
+    jobs: HashMap<DownloadKey, DownloadJob>,
+}
+
+impl DownloadPool {
+
+}
+
+enum DownloadSignal {
+    Pause,
+    Continue,
+    Stop
+}
+
+struct DownloadJob {
+    handle: JoinHandle<()>,
+    tx: UnboundedSender<DownloadSignal>
+}
+
+
 
 enum DownloadStatus {
     NotStarted,
