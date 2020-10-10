@@ -12,15 +12,19 @@ pub struct Config {
 
 #[derive(Deserialize, Clone, Debug, Default)]
 pub struct CacheConfig {
-    #[serde(default = "default_cache_bind")]
-    pub bind: String,
+    #[serde(default = "default_address")]
+    pub address: String,
+    #[serde(default = "default_cache_port")]
+    pub port: u16,
     pub root_path: String,
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]
 pub struct ProxyConfig {
-    #[serde(default = "default_proxy_bind")]
-    pub bind: String,
+    #[serde(default = "default_address")]
+    pub address: String,
+    #[serde(default = "default_proxy_port")]
+    pub port: u16,
     pub nodes: Vec<String>,
 }
 
@@ -44,12 +48,15 @@ impl Entry {
     }
 }
 
-fn default_proxy_bind() -> String {
-    "127.0.0.1:1336".to_owned()
+fn default_address() -> String {
+    "127.0.0.1".to_owned()
 }
 
-fn default_cache_bind() -> String {
-    "127.0.0.1:1337".to_owned()
+fn default_cache_port() -> u16 {
+    1337
+}
+fn default_proxy_port() -> u16 {
+    1336
 }
 
 fn default_patterns() -> Vec<String> {

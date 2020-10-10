@@ -98,11 +98,8 @@ impl Digest {
         }
     }
 
-    pub fn serve(&self) -> impl actix_web::Responder {
-        use crate::util::named_file::NamedFile;
-
-        NamedFile::open(self.get_file_path())
-            .unwrap()
+    pub fn serve(&self) {
+        // TODO
            // .set_content_type(self.content_type.parse().unwrap())
     }
 

@@ -1,3 +1,5 @@
+#[macro_use] extern crate rocket;
+
 mod cache_server;
 mod config;
 mod digest;

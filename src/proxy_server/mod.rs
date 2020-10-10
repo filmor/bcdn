@@ -1,45 +1,39 @@
+use std::collections::HashMap;
+
 use crate::config::Config;
-use actix_web::{http, web, App, Either, HttpResponse, HttpServer, Responder};
+
 mod cache_info;
 use cache_info::CacheInfo;
+use rocket::{State, config::ConfigBuilder, config::Environment, response::Redirect, response::Responder};
 
-#[actix_rt::main]
-pub async fn run(config: Config, _matches: &clap::ArgMatches<'_>) -> std::io::Result<()> {
-    let bind = config.proxy.bind.clone();
+pub fn run(config: Config, _matches: &clap::ArgMatches<'_>) -> std::io::Result<()> {
+    log::info!("Starting CDN proxy");
 
-    log::info!("Starting CDN proxy at {}...", bind);
+    let cache_infos: HashMap<&str, _> = config
+        .entries
+        .keys()
+        .map(|n| (n.as_str(), CacheInfo::new(n, &config)))
+        .collect();
 
-    HttpServer::new(move || {
-        let config = config.clone();
-        App::new().service(web::scope("/c/v1").configure(|cfg| configure(&config, cfg)))
-        // .service(cache_scope)
-    })
-    .bind(bind)?
-    .run()
-    .await
+    let rkt_config = ConfigBuilder::new(Environment::Staging)
+        .address(config.proxy.address)
+        .port(config.proxy.port)
+        .finalize()?;
+
+    rocket::custom(rkt_config)
+        .mount("/c/v1", rocket::routes![data])
+        .manage(cache_infos)
+        .launch();
+
+    unimplemented!()
 }
 
-fn configure(config: &Config, cfg: &mut web::ServiceConfig) {
-    for name in config.entries.keys() {
-        let cache_info = CacheInfo::new(name, &config);
-        let own_scope = web::scope(name)
-            .data(cache_info)
-            .route("/f/{filename}", web::get().to(data));
-
-        cfg.service(own_scope);
+#[get("/<cache>/f/<filename>")]
+fn data(cache: String, filename: String, cache_infos: State<'_, HashMap<&str, CacheInfo>>) -> impl Responder {
+    let cache_info = cache_infos.get(cache.as_str())?;
+    
+    if let Some(redirect) = cache_info.get_redirect(filename.as_str()) {
+        return Some(Redirect::temporary(redirect.to_string()))
     }
-}
-
-async fn data(path: web::Path<String>, cache_info: web::Data<CacheInfo>) -> impl Responder {
-    let cache_info = cache_info.as_ref();
-
-    if let Some(redirect) = cache_info.get_redirect(path.as_ref()) {
-        Either::A(
-            HttpResponse::TemporaryRedirect()
-                .header(http::header::LOCATION, redirect.to_string())
-                .body("Redirect"),
-        )
-    } else {
-        Either::B(HttpResponse::NotFound().body("Not found"))
-    }
+    None
 }

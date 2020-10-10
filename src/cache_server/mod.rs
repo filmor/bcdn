@@ -1,49 +1,36 @@
+use std::collections::HashMap;
+
 use crate::config::Config;
-use actix_web::{http, web, App, Either, HttpResponse, HttpServer, Responder};
 
 mod cache;
 mod download;
 use cache::{Cache, CacheResult};
+use rocket::{State, config::ConfigBuilder, config::Environment};
 
-#[actix_rt::main]
-pub async fn run(config: Config, _matches: &clap::ArgMatches<'_>) -> std::io::Result<()> {
-    let bind = config.cache.bind.clone();
+pub async fn run(config: Config, _matches: &clap::ArgMatches<'_>) -> Result<(), rocket::error::Error> {
+    log::info!("Starting cache node");
+    
+    let caches: HashMap<&str, _> = config
+        .entries
+        .keys()
+        .map(|n| (n.as_str(), Cache::new(n, &config)))
+        .collect();
+    
+    let rkt_config = ConfigBuilder::new(Environment::Staging)
+        .address(config.cache.address)
+        .port(config.cache.port)
+        .finalize()?;
 
-    log::info!("Starting cache node at {}...", bind);
-
-    HttpServer::new(move || {
-        let config = config.clone();
-        App::new().service(web::scope("/c/v1").configure(|cfg| configure(&config, cfg)))
-        // .service(cache_scope)
-    })
-    .bind(bind)?
-    .run()
-    .await
+    rocket::ignite()
+        .mount("/c/v1", rocket::routes![data])
+        .manage(caches)
+        .launch()
+        .await
 }
 
-fn configure(config: &Config, cfg: &mut web::ServiceConfig) {
-    for (name, _entry) in &config.entries {
-        let cache = Cache::new(name, &config);
-        let own_scope = web::scope(name)
-            .data(cache)
-            .route("/f/{filename}", web::get().to(data));
-
-        cfg.service(own_scope);
-    }
-}
-
-async fn data(path: web::Path<String>, cache: web::Data<Cache>) -> impl Responder {
-    match cache.as_ref().get(path.as_ref()).await {
-        CacheResult::Ok(digest) => Either::A(digest.serve()),
-        CacheResult::NotCached { redirect, in_work } => {
-            if !in_work {}
-
-            Either::B(
-                HttpResponse::TemporaryRedirect()
-                    .header(http::header::LOCATION, redirect.to_string())
-                    .body(format!("In work: {}", in_work)),
-            )
-        }
-        _ => Either::B(HttpResponse::NotFound().body("Not found")),
-    }
+#[get("/<cache>/f/<filename>")]
+async fn data(cache: String, filename: String, caches: State<'_, HashMap<&str, Cache>>) -> Option<String> {
+    let cache = caches.get(cache.as_str())?;
+    cache.get(filename.as_str()).await;
+    None
 }
