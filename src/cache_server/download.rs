@@ -4,11 +4,14 @@ use futures_util::StreamExt;
 use reqwest::Client;
 use std::fs;
 use std::io::Write;
-use std::{collections::HashMap, path::{Path, PathBuf}};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 use thiserror::Error;
-use url::Url;
-use tokio::task::{JoinHandle};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::task::JoinHandle;
+use url::Url;
 
 struct DownloadKey {
     cache: String,
@@ -23,22 +26,16 @@ pub struct DownloadPool {
     jobs: HashMap<DownloadKey, DownloadJob>,
 }
 
-impl DownloadPool {
-
-}
-
 enum DownloadSignal {
     Pause,
     Continue,
-    Stop
+    Stop,
 }
 
 struct DownloadJob {
     handle: JoinHandle<()>,
-    tx: UnboundedSender<DownloadSignal>
+    tx: UnboundedSender<DownloadSignal>,
 }
-
-
 
 enum DownloadStatus {
     NotStarted,
@@ -63,8 +60,7 @@ impl<'a> Downloader<'a> {
         }
     }
 
-    pub async fn download(&self) -> Result<Digest, DownloadError>
-    {
+    pub async fn download(&self) -> Result<Digest, DownloadError> {
         let path = &self.path;
         let file_name = if let Some(file_name) = path.file_name() {
             file_name.to_string_lossy()
@@ -72,7 +68,12 @@ impl<'a> Downloader<'a> {
             return Err(DownloadError::PathError);
         };
 
-        let resp = self.client.get(self.url.clone()).send().await?.error_for_status()?;
+        let resp = self
+            .client
+            .get(self.url.clone())
+            .send()
+            .await?
+            .error_for_status()?;
 
         let headers = resp.headers();
         let content_type: String = if let Some(value) = headers.get(reqwest::header::CONTENT_TYPE) {
@@ -84,7 +85,11 @@ impl<'a> Downloader<'a> {
         let download_fn = format!(".{}.download", file_name);
         let download_path = path.with_file_name(download_fn);
 
-        log::debug!("Downloading {} to {}", self.url, download_path.to_string_lossy());
+        log::debug!(
+            "Downloading {} to {}",
+            self.url,
+            download_path.to_string_lossy()
+        );
 
         let mut hasher = Hasher::new();
         fs::create_dir_all(path.parent().unwrap())?;

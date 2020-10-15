@@ -1,9 +1,12 @@
+use std::{collections::HashMap, sync::Arc};
+
 use crate::config::Config;
 use actix_web::{http, web, App, Either, HttpResponse, HttpServer, Responder};
 
 mod cache;
 mod download;
 use cache::{Cache, CacheResult};
+use download::DownloadPool;
 
 #[actix_rt::main]
 pub async fn run(config: Config, _matches: &clap::ArgMatches<'_>) -> std::io::Result<()> {
@@ -11,9 +14,20 @@ pub async fn run(config: Config, _matches: &clap::ArgMatches<'_>) -> std::io::Re
 
     log::info!("Starting cache node at {}...", bind);
 
+    let caches: Arc<HashMap<_, _>> = Arc::new(
+        config
+            .entries
+            .iter()
+            .map(|(k, _v)| (k.clone(), web::Data::new(Cache::new(k, &config))))
+            .collect(),
+    );
+
+    // let pool = DownloadPool::new();
+
     HttpServer::new(move || {
-        let config = config.clone();
-        App::new().service(web::scope("/c/v1").configure(|cfg| configure(&config, cfg)))
+        let caches = caches.clone();
+
+        App::new().service(web::scope("/c/v1").configure(|cfg| configure(caches.clone(), cfg)))
         // .service(cache_scope)
     })
     .bind(bind)?
@@ -21,11 +35,11 @@ pub async fn run(config: Config, _matches: &clap::ArgMatches<'_>) -> std::io::Re
     .await
 }
 
-fn configure(config: &Config, cfg: &mut web::ServiceConfig) {
-    for (name, _entry) in &config.entries {
-        let cache = Cache::new(name, &config);
-        let own_scope = web::scope(name)
-            .data(cache)
+fn configure(caches: Arc<HashMap<String, web::Data<Cache>>>, cfg: &mut web::ServiceConfig) {
+    for (name, cache) in caches.iter() {
+        let cache = cache.clone();
+        let own_scope = web::scope(&name)
+            .app_data(cache)
             .route("/f/{filename}", web::get().to(data));
 
         cfg.service(own_scope);

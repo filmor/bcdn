@@ -1,5 +1,5 @@
+use super::{digest::DigestError, Digest};
 use crate::config::Config;
-use super::Digest;
 use globset::GlobSet;
 use reqwest::Client;
 use std::collections::HashMap;
@@ -24,6 +24,7 @@ pub struct Cache {
 
 impl Cache {
     pub fn new(name: &str, config: &Config) -> Self {
+        log::info!("Initializing cache '{}'", name);
         let entry = &config.entries[name];
         let path = Path::new(&config.cache.root_path).join(name);
         fs::create_dir_all(&path).unwrap();
@@ -93,14 +94,25 @@ fn preprocess_existing<P: AsRef<Path>>(root: P, glob: &GlobSet) -> HashMap<Strin
         let path = entry.unwrap().path();
 
         if glob.is_match(&path) {
-            let digest = Digest::for_path(&path).unwrap();
-            log::info!("Found existing file at {}", path.to_string_lossy());
-            digest.verify().unwrap();
-
-            let file_name = digest.file_name.clone();
-            res.insert(file_name, digest);
+            match load_from_path(&path) {
+                Ok(digest) => {
+                    res.insert(digest.file_name.clone(), digest);
+                }
+                Err(err) => log::warn!(
+                    "Failed to load digest from {}: {}",
+                    path.to_string_lossy(),
+                    err
+                ),
+            };
         }
     }
 
     res
+}
+
+fn load_from_path(path: &Path) -> Result<Digest, DigestError> {
+    let digest = Digest::for_path(&path)?;
+    log::info!("Found existing file at {}", path.to_string_lossy());
+    digest.verify()?;
+    Ok(digest)
 }
