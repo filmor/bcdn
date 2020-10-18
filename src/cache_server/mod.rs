@@ -6,7 +6,6 @@ use actix_web::{http, web, App, Either, HttpResponse, HttpServer, Responder};
 mod cache;
 mod download;
 use cache::{Cache, CacheResult};
-use download::DownloadPool;
 
 #[actix_rt::main]
 pub async fn run(config: Config, _matches: &clap::ArgMatches<'_>) -> std::io::Result<()> {
@@ -49,13 +48,14 @@ fn configure(caches: Arc<HashMap<String, web::Data<Cache>>>, cfg: &mut web::Serv
 async fn data(path: web::Path<String>, cache: web::Data<Cache>) -> impl Responder {
     match cache.as_ref().get(path.as_ref()).await {
         // CacheResult::Ok(digest) => Either::A(digest.serve()),
-        CacheResult::NotCached { redirect, in_work } => {
-            if !in_work {}
+        // CacheResult::Incomplete(digest) => Either::A(digest.serve()),
+        CacheResult::NotCached => {
+            let redirect = "redirect-location";
 
             Either::A(
                 HttpResponse::TemporaryRedirect()
                     .header(http::header::LOCATION, redirect.to_string())
-                    .body(format!("In work: {}", in_work)),
+                    .body(format!("In work")),
             )
         }
         _ => Either::B(HttpResponse::NotFound().body("Not found")),

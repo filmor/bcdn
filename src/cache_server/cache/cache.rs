@@ -16,6 +16,7 @@ pub struct Cache {
     patterns: GlobSet,
     path: PathBuf,
     items: RwLock<HashMap<String, Digest>>,
+    incomplete_items: RwLock<HashMap<String, Digest>>,
     // work_sem: Semaphore,
 
     // TODO Make use of in_work as a Semaphore to limit the number of parallel downloads
@@ -30,6 +31,7 @@ impl Cache {
         fs::create_dir_all(&path).unwrap();
         let patterns = entry.get_globset().unwrap();
 
+        // TODO: Split into incomplete and complete
         let items = preprocess_existing(&path, &patterns);
 
         Cache {
@@ -39,6 +41,7 @@ impl Cache {
             path,
             patterns,
             items: RwLock::new(items),
+            incomplete_items: RwLock::new(Default::default())
         }
     }
 
@@ -51,8 +54,11 @@ impl Cache {
             return CacheResult::Ok(digest);
         }
 
-        // self.cache(filename).await
-        unimplemented!()
+        if let Some(digest) = self.incomplete_items.read().await.get(filename).cloned() {
+            return CacheResult::Incomplete(digest);
+        }
+        
+        CacheResult::NotCached
     }
 
     // pub async fn cache(&self, name: &str) -> CacheResult {
@@ -82,7 +88,8 @@ enum CacheError {}
 #[derive(Debug)]
 pub enum CacheResult {
     Ok(Digest),
-    NotCached { redirect: Url, in_work: bool },
+    Incomplete(Digest),
+    NotCached,
     NotFound,
 }
 

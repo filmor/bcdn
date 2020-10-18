@@ -18,14 +18,6 @@ struct DownloadKey {
     filename: String,
 }
 
-pub struct DownloadPool {
-    max_count: u32,
-    client: Client,
-    rx: UnboundedReceiver<(DownloadKey, Digest)>,
-    tx: UnboundedSender<(DownloadKey, Digest)>,
-    jobs: HashMap<DownloadKey, DownloadJob>,
-}
-
 enum DownloadSignal {
     Pause,
     Continue,
