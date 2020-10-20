@@ -17,7 +17,7 @@ pub async fn run(config: Config, _matches: &clap::ArgMatches<'_>) -> std::io::Re
         config
             .entries
             .iter()
-            .map(|(k, _v)| (k.clone(), web::Data::new(Cache::new(k, &config))))
+            .map(|(k, _v)| (k.clone(), web::Data::new(Cache::new(k, &config).unwrap())))
             .collect(),
     );
 
