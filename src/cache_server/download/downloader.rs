@@ -1,4 +1,4 @@
-use super::cache::Digest;
+use super::Digest;
 use blake3::Hasher;
 use futures_util::StreamExt;
 use reqwest::Client;

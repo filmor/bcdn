@@ -47,9 +47,6 @@ impl Cache {
 
         let patterns = entry.get_globset()?;
 
-        // TODO: Split into incomplete and complete
-        let items = preprocess_existing(&path, &patterns);
-
         Ok(Cache {
             name: name.to_owned(),
             base: Url::parse(&entry.base_url).unwrap(),
