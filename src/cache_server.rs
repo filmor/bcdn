@@ -1,6 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::config::Config;
+use actix_files::NamedFile;
+use actix_http::http::header::ContentDisposition;
 use actix_web::{http, web, App, Either, HttpResponse, HttpServer, Responder};
 
 mod cache;
@@ -48,15 +50,25 @@ fn configure(caches: Arc<HashMap<String, web::Data<Cache>>>, cfg: &mut web::Serv
     }
 }
 
-async fn data(path: web::Path<String>, cache: web::Data<Cache>, pool: web::Data<DownloadPool>) -> impl Responder {
+async fn data(
+    path: web::Path<String>,
+    cache: web::Data<Cache>,
+    pool: web::Data<DownloadPool>,
+) -> impl Responder {
     let cache = cache.as_ref();
     let pool = pool.as_ref();
+    let filename = check_filename(path.as_ref());
 
-    match cache.get(path.as_ref()).await {
+    match cache.get(filename).await {
         // CacheResult::Ok(digest) => Either::A(digest.serve()),
         // CacheResult::Incomplete(digest) => Either::A(digest.serve()),
         CacheResult::NotCached => {
-            let redirect = "redirect-location";
+            let enq_res = pool.enqueue(cache, filename);
+
+            if enq_res.percentage() > 30 {
+                // PartialNamedFile
+            }
+            let redirect = cache.get_redirect(filename);
 
             Either::A(
                 HttpResponse::TemporaryRedirect()
@@ -64,6 +76,19 @@ async fn data(path: web::Path<String>, cache: web::Data<Cache>, pool: web::Data<
                     .body(format!("In work")),
             )
         }
-        _ => Either::B(HttpResponse::NotFound().body("Not found")),
+        CacheResult::Ok(digest) => {
+            let f = NamedFile::open(digest.get_file_path())
+                .unwrap()
+                .set_content_type(digest.content_type.parse().unwrap());
+            Either::B(f)
+        }
+        _ => Either::A(HttpResponse::NotFound().body("Not found")),
     }
+}
+
+fn check_filename<'a>(filename: &'a str) -> &'a str {
+    if filename.contains('/') {
+        panic!("Invalid filename");
+    }
+    filename
 }

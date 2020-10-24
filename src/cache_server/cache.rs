@@ -75,6 +75,10 @@ impl Cache {
 
         CacheResult::NotCached
     }
+    
+    pub fn get_redirect(&self, filename: &str) -> Url {
+        self.base.join(filename).unwrap()
+    }
 
     // pub async fn cache(&self, name: &str) -> CacheResult {
     //     let url = self.base.join(name).unwrap();
