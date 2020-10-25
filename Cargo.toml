@@ -11,7 +11,6 @@ actix-http = "2"
 actix-files = "0.4"
 actix-rt = "1.1"
 actix-web = "3.1"
-anyhow = "1"
 blake3 = "0.3"
 clap = "2"
 futures-util = "0.3"
@@ -27,7 +26,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sled = "0.34"
 thiserror = "1"
-tokio = { version = "0.2", features = ["rt-threaded"] }
+tokio = { version = "0.2", features = ["rt-threaded", "macros"] }
 toml = "0.5"
 url = "2.1"
 zerocopy = "0.3"
