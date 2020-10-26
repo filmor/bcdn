@@ -55,10 +55,15 @@ impl<Question, Answer> RpcReceiver<Question, Answer> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+use thiserror::Error;
+
+#[derive(Debug, Clone, Copy, Error)]
 pub enum RpcError {
+    #[error("Receiver end closed")]
     ReceiverClosed,
+    #[error("Sender end closed")]
     SenderClosed,
+    #[error("No pending queries")]
     Empty,
 }
 

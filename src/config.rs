@@ -15,6 +15,8 @@ pub struct CacheConfig {
     #[serde(default = "default_cache_bind")]
     pub bind: String,
     pub root_path: String,
+    #[serde(default = "default_max_downloads")]
+    pub max_downloads: usize,
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -54,4 +56,8 @@ fn default_cache_bind() -> String {
 
 fn default_patterns() -> Vec<String> {
     vec!["*".to_owned()]
+}
+
+fn default_max_downloads() -> usize {
+    4
 }

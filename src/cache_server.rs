@@ -56,14 +56,13 @@ async fn data(
     pool: web::Data<DownloadPool>,
 ) -> impl Responder {
     let cache = cache.as_ref();
-    let pool = pool.as_ref();
     let filename = check_filename(path.as_ref());
 
     match cache.get(filename).await {
         // CacheResult::Ok(digest) => Either::A(digest.serve()),
         // CacheResult::Incomplete(digest) => Either::A(digest.serve()),
         CacheResult::NotCached => {
-            let enq_res = pool.enqueue(cache, filename);
+            let enq_res = pool.enqueue(cache, filename).await;
 
             if enq_res.percentage() > 30 {
                 // PartialNamedFile
