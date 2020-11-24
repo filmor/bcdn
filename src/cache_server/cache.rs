@@ -3,37 +3,19 @@ pub use digest::{Digest, DigestError};
 
 use crate::config::Config;
 use globset::GlobSet;
-use reqwest::Client;
-use sled::{Db, Tree};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::{collections::HashMap, ops::Deref};
 use thiserror::Error;
 use tokio::sync::RwLock;
 use url::Url;
-use zerocopy::{AsBytes, FromBytes, LayoutVerified, Unaligned};
 
-#[derive(Clone)]
 pub struct Cache {
     pub name: String,
     base: Url,
     patterns: GlobSet,
     path: PathBuf,
-    db: Db,
-}
-
-#[derive(Clone, FromBytes, AsBytes)]
-#[repr(C)]
-struct CacheEntry {
-    downloaded: u64,
-    size: u64,
-    hash: [u8; 32],
-}
-
-impl CacheEntry {
-    pub fn is_done(&self) -> bool {
-        self.size == self.downloaded
-    }
+    digests: RwLock<HashMap<String, Digest>>,
 }
 
 impl Cache {
@@ -43,29 +25,16 @@ impl Cache {
         let path = Path::new(&config.cache.root_path).join(name);
         fs::create_dir_all(&path)?;
 
-        let db = sled::Config::new().path(path.join(".db")).open()?;
-
         let patterns = entry.get_globset()?;
+        let digests = RwLock::new(preprocess_existing(&path, &patterns));
 
         Ok(Cache {
             name: name.to_owned(),
             base: Url::parse(&entry.base_url).unwrap(),
             path,
             patterns,
-            db,
+            digests,
         })
-    }
-
-    fn get_entry(&self, filename: &str) -> Option<CacheEntry> {
-        self.db.get(filename).unwrap().map(|data| {
-            let layout: LayoutVerified<_, CacheEntry> = LayoutVerified::new(&*data).unwrap();
-            layout.into_ref().clone()
-        })
-    }
-
-    fn set_entry(&self, filename: &str, entry: CacheEntry) {
-        let entry = entry.as_bytes();
-        self.db.insert(filename, entry).unwrap();
     }
 
     pub async fn get(&self, filename: &str) -> CacheResult {
@@ -73,39 +42,24 @@ impl Cache {
             return CacheResult::NotFound;
         }
 
-        CacheResult::NotCached
+        if let Some(digest) = self.digests.read().await.get(filename) {
+            CacheResult::Ok(digest.clone())
+        } else {
+            CacheResult::NotCached
+        }
     }
-    
+
     pub fn get_redirect(&self, filename: &str) -> Url {
         self.base.join(filename).unwrap()
     }
 
-    // pub async fn cache(&self, name: &str) -> CacheResult {
-    //     let url = self.base.join(name).unwrap();
-    //     let path = self.path.join(name);
-
-    //     match Downloader::new(&self.client, url, &path).download().await {
-    //         Ok(digest) => {
-    //             digest.write(&self.path).unwrap();
-
-    //             let mut items = self.items.write().await;
-    //             items.insert(name.to_owned(), digest.clone());
-
-    //             CacheResult::Ok(digest)
-    //         }
-    //         Err(err) => {
-    //             log::error!("Download error: {:?}", err);
-    //             CacheResult::DownloadError(err)
-    //         }
-    //     }
-    // }
+    pub fn get_path(&self) -> &Path {
+        &self.path
+    }
 }
 
 #[derive(Error, Debug)]
 pub enum CacheError {
-    #[error("Sled error: {0:?}")]
-    Sled(#[from] sled::Error),
-
     #[error("Globset error: {0:?}")]
     GlobSet(#[from] globset::Error),
 
@@ -119,7 +73,6 @@ pub enum CacheError {
 #[derive(Debug)]
 pub enum CacheResult {
     Ok(Digest),
-    Incomplete(Digest),
     NotCached,
     NotFound,
 }

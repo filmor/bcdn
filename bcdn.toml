@@ -1,6 +1,7 @@
 [cache]
 bind = "127.0.0.1:1337"
 root_path = "./cache"
+max_downloads = 1
 
 [proxy]
 nodes = [

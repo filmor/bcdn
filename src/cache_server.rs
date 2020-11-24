@@ -62,7 +62,18 @@ async fn data(
         // CacheResult::Ok(digest) => Either::A(digest.serve()),
         // CacheResult::Incomplete(digest) => Either::A(digest.serve()),
         CacheResult::NotCached => {
+            log::info!(
+                "File {} is not cached for {}, enqueuing",
+                filename,
+                cache.name,
+            );
             let enq_res = pool.enqueue(cache, filename).await;
+            log::info!(
+                "File {} is not cached for {}, download state: {:?}",
+                filename,
+                cache.name,
+                enq_res
+            );
 
             if enq_res.percentage() > 30 {
                 // PartialNamedFile

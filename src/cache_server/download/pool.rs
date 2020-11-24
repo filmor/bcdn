@@ -10,8 +10,9 @@ use crate::{
     util::rpc::{rpc, RpcError, RpcHandle, RpcReceiver},
 };
 
+type JobKey = (String, String);
 type ArcRw<T> = Arc<RwLock<T>>;
-type JobsType = ArcRw<HashMap<(String, String), StatePtr>>;
+type JobsType = ArcRw<HashMap<JobKey, StatePtr>>;
 type StatePtr = ArcRw<DownloadState>;
 
 pub struct DownloadPool {
@@ -19,6 +20,7 @@ pub struct DownloadPool {
     update_task: JoinHandle<()>,
     jobs: JobsType,
     client: Client,
+    queue: Sender<JobKey>,
 }
 
 struct Handle {
@@ -46,6 +48,10 @@ unsafe impl Sync for DownloadPool {}
 impl DownloadPool {
     pub fn new(config: &Config) -> Self {
         let client = Client::new();
+
+        if config.cache.max_downloads < 1 {
+            panic!("Invalid configuration, max_downloads must be > 1");
+        }
 
         let handles = (1..=config.cache.max_downloads)
             .map(|_i| {
@@ -78,11 +84,20 @@ impl DownloadPool {
 
     pub async fn enqueue(&self, cache: &Cache, filename: &str) -> DownloadState {
         let key = (cache.name.clone(), filename.to_owned());
-        if let Some(state) = self.jobs.read().await.get(&key) {
+        log::info!("Enqueuing key {:?}", key);
+        let exists = {
+            self.jobs.read().await.contains_key(&key)
+        };
+
+        if exists {
+            let state = self.jobs.read().await[&key];
+            log::info!("Already in work");
             state.read().await.clone()
         } else {
+            log::info!("Not enqueued yet, creating new state");
             let state = Arc::new(RwLock::new(DownloadState::NotStarted));
             self.jobs.write().await.insert(key, state.clone());
+            log::info!("Successfully written");
             state.clone().read().await.clone()
         }
     }
@@ -134,20 +149,23 @@ async fn idle_task(client: Client, mut rx: RpcReceiver<Command, Reply>) {
     let mut cont = true;
     let mut current_task = None;
     while cont {
-        rx.reply(|q| match q {
-            Command::Start(key, url, path, status) => {
-                current_task = Some((key, url, path, status));
-                Reply::Ok
-            }
-            Command::Stop => Reply::Ok,
-            Command::Status => Reply::Idle,
-            Command::Quit => {
-                cont = false;
-                Reply::Ok
-            }
-        })
-        .await
-        .unwrap();
+        if let Err(_) = rx
+            .reply(|q| match q {
+                Command::Start(key, url, path, status) => {
+                    current_task = Some((key, url, path, status));
+                    Reply::Ok
+                }
+                Command::Stop => Reply::Ok,
+                Command::Status => Reply::Idle,
+                Command::Quit => {
+                    cont = false;
+                    Reply::Ok
+                }
+            })
+            .await
+        {
+            cont = false;
+        }
 
         if let Some((key, url, path, status)) = current_task {
             download_task(&client, &mut rx, key, url, path, status)
