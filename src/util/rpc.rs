@@ -1,5 +1,5 @@
-use mpsc::error::TryRecvError;
 use tokio::sync::{mpsc, oneshot};
+use futures::FutureExt;
 
 type Msg<Question, Answer> = (Question, oneshot::Sender<Answer>);
 
@@ -13,6 +13,8 @@ pub fn rpc<Question, Answer>() -> (RpcHandle<Question, Answer>, RpcReceiver<Ques
 pub struct RpcReceiver<Question, Answer> {
     rx: mpsc::Receiver<Msg<Question, Answer>>,
 }
+
+unsafe impl<Question, Answer> Send for RpcReceiver<Question, Answer> {}
 
 impl<Question, Answer> Unpin for RpcReceiver<Question, Answer> {}
 
@@ -38,10 +40,11 @@ impl<Question, Answer> RpcReceiver<Question, Answer> {
     where
         F: FnOnce(Question) -> Answer,
     {
-        let (q, tx) = self.rx.try_recv().map_err(|err| match err {
-            TryRecvError::Empty => RpcError::Empty,
-            TryRecvError::Closed => RpcError::SenderClosed,
-        })?;
+        let (q, tx) = self.rx.recv()
+            .now_or_never()
+            .ok_or(RpcError::Empty)?
+            .ok_or(RpcError::ReceiverClosed)?
+            ;
 
         tx.send(func(q)).map_err(|_| RpcError::SenderClosed)
     }
@@ -110,7 +113,7 @@ mod tests {
                 let tx = tx.clone();
                 tokio::spawn(async move {
                     let fut = tx.call(Q::Ping(i));
-                    tokio::time::delay_for(Duration::from_millis(50)).await;
+                    tokio::time::sleep(Duration::from_millis(50)).await;
                     assert_eq!(fut.await.unwrap(), A::Pong(i));
                 })
             })
