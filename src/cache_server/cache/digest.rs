@@ -107,6 +107,7 @@ impl Digest {
     }
 }
 
+
 fn default_root() -> PathBuf {
     PathBuf::new()
 }

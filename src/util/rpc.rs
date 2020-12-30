@@ -15,10 +15,10 @@ pub struct RpcReceiver<Question, Answer> {
 }
 
 unsafe impl<Question, Answer> Send for RpcReceiver<Question, Answer> {}
+unsafe impl<Question, Answer> Sync for RpcReceiver<Question, Answer> {}
 
 impl<Question, Answer> Unpin for RpcReceiver<Question, Answer> {}
 
-#[derive(Clone)]
 pub struct RpcHandle<Question, Answer> {
     tx: mpsc::Sender<Msg<Question, Answer>>,
 }
@@ -32,6 +32,12 @@ impl<Question, Answer> RpcHandle<Question, Answer> {
             .await
             .map_err(|_| RpcError::ReceiverClosed)?;
         rx.await.map_err(|_| RpcError::ReceiverClosed)
+    }
+}
+
+impl<Question, Answer> Clone for RpcHandle<Question, Answer> {
+    fn clone(&self) -> Self {
+        Self { tx: self.tx.clone() }
     }
 }
 

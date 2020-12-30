@@ -1,5 +1,6 @@
 mod pool;
+mod downloader;
 
-use super::cache::Digest;
+pub use super::cache::Digest;
 
 pub use pool::DownloadPool;
