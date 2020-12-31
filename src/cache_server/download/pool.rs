@@ -1,11 +1,14 @@
-
-use futures_util::{StreamExt, future::join_all};
-use reqwest::Client;
-use std::{sync::Arc, time::Duration};
+use futures_util::{future::join_all, StreamExt};
+use reqwest::{Client, Url};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::{sync::RwLock, task::JoinHandle};
 
-use crate::{Config, cache_server::cache::Cache, util::rpc::{RpcHandle, RpcReceiver}};
 use crate::util::rpc::rpc;
+use crate::{
+    cache_server::cache::Cache,
+    util::rpc::{RpcHandle, RpcReceiver},
+    Config,
+};
 
 use super::downloader::Downloader;
 
@@ -15,9 +18,9 @@ type ArcRw<T> = Arc<RwLock<T>>;
 pub struct DownloadPool {
     update_task: JoinHandle<()>,
     client: Client,
-    rpc: RpcHandle<Command, Reply>
+    rpc: RpcHandle<Command, Reply>,
+    base_urls: HashMap<String, Url>,
 }
-
 
 // unsafe impl Send for DownloadPool {}
 unsafe impl Sync for DownloadPool {}
@@ -29,12 +32,23 @@ impl DownloadPool {
         if config.cache.max_downloads < 1 {
             panic!("Invalid configuration, max_downloads must be > 1");
         }
-        
-        let downloaders: Vec<_> = (1..=config.cache.max_downloads).map(|_| Downloader::new(client.clone()))
-            .collect();
-        
-        let (tx, rx) = rpc();
 
+        let downloaders: Vec<_> = (1..=config.cache.max_downloads)
+            .map(|_| Downloader::new(client.clone()))
+            .collect();
+
+        let base_urls = config
+            .entries
+            .iter()
+            .map(|(name, entry)| {
+                (
+                    name.clone(),
+                    Url::parse(&entry.base_url).expect("Could not parse url"),
+                )
+            })
+            .collect();
+
+        let (tx, rx) = rpc();
 
         let update_task = tokio::task::spawn(async move {
             update_task(rx, downloaders).await;
@@ -43,12 +57,18 @@ impl DownloadPool {
         DownloadPool {
             update_task,
             rpc: tx,
-            client
+            client,
+            base_urls,
         }
     }
-    
+
     pub async fn enqueue(&self, cache: &Cache, filename: &str) -> DownloadState {
-        unimplemented!();
+        let base = self.base_urls.get(&cache.name).expect("Invalid cache name");
+        let url = base.join(filename).unwrap();
+        let key = (cache.name.clone(), filename.to_owned());
+        let _ = self.rpc.call(Command::Enqueue { key, url }).await.unwrap();
+
+        DownloadState {}
     }
 
     // pub async fn enqueue(&self, cache: &Cache, filename: &str) -> DownloadState {
@@ -73,25 +93,29 @@ impl DownloadPool {
     // }
 }
 
-async fn update_task(rx: RpcReceiver<Command, Reply>, downloaders: Vec<Downloader<(String, String)>>) {
+async fn update_task(
+    rx: RpcReceiver<Command, Reply>,
+    downloaders: Vec<Downloader<(String, String)>>,
+) {
     loop {
+        // rx.try_reply_once(|l)
+        // TODO: Handle Enqueue, Status and Quit
+
         // Loop over tasks and ask for status
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
-        let states = join_all(downloaders.iter().map(|h| {
-            h.status()
-        })).await;
 
+        let states = join_all(downloaders.iter().map(|h| h.status())).await;
     }
 }
 
 enum Command {
-    Enqueue,
-    Status
+    Enqueue { key: (String, String), url: Url },
+    Status,
+    Quit,
 }
 
 enum Reply {
-    Done
+    Done,
 }
 
 #[derive(Debug, Clone, Copy)]

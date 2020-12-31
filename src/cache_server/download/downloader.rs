@@ -102,7 +102,7 @@ async fn idle_task<K: Clone + Send>(client: Client, mut rx: RpcReceiver<Command<
     let mut current_task = None;
     while cont {
         if let Err(_) = rx
-            .reply(|q| match q {
+            .reply_once(|q| match q {
                 Command::Start(key, url, path) => {
                     current_task = Some((key, url, path));
                     Reply::Ok
@@ -190,7 +190,7 @@ async fn download_task<K: Clone + Send>(
             let _ = digest.write(root);
         }
 
-        rx.try_reply(|q| match q {
+        rx.try_reply_once(|q| match q {
             Command::Start(_, _, _) => Reply::Error,
             Command::Stop => todo!(),
             Command::Status => Reply::Downloading {

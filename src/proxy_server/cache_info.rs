@@ -14,7 +14,7 @@ pub struct NodeCacheInfo {
 }
 
 impl NodeCacheInfo {
-    fn new(url: Url, config: &Config) -> Self {
+    fn new(url: Url, _config: &Config) -> Self {
         NodeCacheInfo { url }
     }
 }

@@ -1,5 +1,5 @@
-use tokio::sync::{mpsc, oneshot};
 use futures::FutureExt;
+use tokio::sync::{mpsc, oneshot};
 
 type Msg<Question, Answer> = (Question, oneshot::Sender<Answer>);
 
@@ -14,9 +14,16 @@ pub struct RpcReceiver<Question, Answer> {
     rx: mpsc::Receiver<Msg<Question, Answer>>,
 }
 
+pub struct RpcReplyHandle<Question, Answer, F>
+where
+    F: Fn(Question) -> Answer,
+{
+    receiver: RpcReceiver<Question, Answer>,
+    func: F,
+}
+
 unsafe impl<Question, Answer> Send for RpcReceiver<Question, Answer> {}
 unsafe impl<Question, Answer> Sync for RpcReceiver<Question, Answer> {}
-
 impl<Question, Answer> Unpin for RpcReceiver<Question, Answer> {}
 
 pub struct RpcHandle<Question, Answer> {
@@ -37,25 +44,40 @@ impl<Question, Answer> RpcHandle<Question, Answer> {
 
 impl<Question, Answer> Clone for RpcHandle<Question, Answer> {
     fn clone(&self) -> Self {
-        Self { tx: self.tx.clone() }
+        Self {
+            tx: self.tx.clone(),
+        }
     }
 }
 
-impl<Question, Answer> RpcReceiver<Question, Answer> {
-    pub fn try_reply<F>(&mut self, func: F) -> Result<(), RpcError>
+impl<'a, Question: 'a, Answer: 'a> RpcReceiver<Question, Answer> {
+    pub fn reply<F: 'a>(self, func: F) -> impl futures::Stream<Item = ()> + 'a
+    where
+        F: FnMut(Question) -> Answer,
+    {
+        futures::stream::unfold((self, func), |(mut recv, mut func)| async move {
+            recv.reply_once(&mut func)
+                .await
+                .ok()
+                .map(|el| (el, (recv, func)))
+        })
+    }
+
+    pub fn try_reply_once<F>(&mut self, func: F) -> Result<(), RpcError>
     where
         F: FnOnce(Question) -> Answer,
     {
-        let (q, tx) = self.rx.recv()
+        let (q, tx) = self
+            .rx
+            .recv()
             .now_or_never()
             .ok_or(RpcError::Empty)?
-            .ok_or(RpcError::ReceiverClosed)?
-            ;
+            .ok_or(RpcError::ReceiverClosed)?;
 
         tx.send(func(q)).map_err(|_| RpcError::SenderClosed)
     }
 
-    pub async fn reply<F>(&mut self, func: F) -> Result<(), RpcError>
+    pub async fn reply_once<F>(&mut self, func: F) -> Result<(), RpcError>
     where
         F: FnOnce(Question) -> Answer,
     {
@@ -101,14 +123,15 @@ mod tests {
         let responder = tokio::spawn(async move {
             let mut cont = true;
             while cont {
-                rx.reply(|q| match q {
+                rx.reply_once(|q| match q {
                     Q::Ping(value) => A::Pong(value),
                     Q::Quit => {
                         cont = false;
                         A::Done
                     }
                 })
-                .await.unwrap();
+                .await
+                .unwrap();
             }
         });
 
