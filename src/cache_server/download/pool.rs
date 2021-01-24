@@ -10,7 +10,7 @@ use crate::{
     Config,
 };
 
-use super::downloader::Downloader;
+use super::{downloader::Downloader, job_queue::JobQueue};
 
 type JobKey = (String, String);
 type ArcRw<T> = Arc<RwLock<T>>;
@@ -94,23 +94,37 @@ impl DownloadPool {
 }
 
 async fn update_task(
-    rx: RpcReceiver<Command, Reply>,
+    mut rx: RpcReceiver<Command, Reply>,
     downloaders: Vec<Downloader<(String, String)>>,
 ) {
+    let mut jq = JobQueue::new();
     loop {
-        // rx.try_reply_once(|l)
+        let mut cont = true;
+        rx.try_reply_once(|command| {
+            match command {
+                Command::Enqueue { key, url } => {
+                    jq.push(key, url);
+                    // TODO: If already in work, get current status
+                }
+                Command::Quit => {
+                    cont = false;
+                }
+            };
+            Reply::Done
+        })
+        .unwrap();
+
+        let states = join_all(downloaders.iter().map(|h| h.status())).await;
+
         // TODO: Handle Enqueue, Status and Quit
 
         // Loop over tasks and ask for status
         tokio::time::sleep(Duration::from_millis(100)).await;
-
-        let states = join_all(downloaders.iter().map(|h| h.status())).await;
     }
 }
 
 enum Command {
     Enqueue { key: (String, String), url: Url },
-    Status,
     Quit,
 }
 
