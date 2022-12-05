@@ -25,10 +25,11 @@ impl<K: Clone + Eq + Hash, D> JobQueue<K, D> {
     }
 
     pub fn push(&mut self, key: K, data: D) {
-        self.jobs.entry(key).or_insert_with(|| {
+        unimplemented!()
+        /* self.jobs.entry(key).or_insert_with(|| {
             self.queue.push_back(key);
             Job::Pending { data }
-        });
+        }); */
     }
     
     pub fn reset(&mut self, slot: usize) {
@@ -41,7 +42,8 @@ impl<K: Clone + Eq + Hash, D> JobQueue<K, D> {
 
     pub fn pop(&mut self, slot: usize) -> Option<(K, D)> {
         // TODO: Parameter: which slot is being used?
-        self.queue.pop_front().map(|key| {
+        unimplemented!()
+        /* self.queue.pop_front().map(|key| {
             let mut res = None;
             self.jobs.entry(key).and_modify(|val| {
                 let Job::Pending { data } = val;
@@ -49,7 +51,7 @@ impl<K: Clone + Eq + Hash, D> JobQueue<K, D> {
                 *val = None;
             });
             (key, res.unwrap())
-        })
+        }) */
     }
 
     pub fn is_empty(&self) -> bool {

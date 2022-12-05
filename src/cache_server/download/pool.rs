@@ -97,7 +97,7 @@ async fn update_task(
     mut rx: RpcReceiver<Command, Reply>,
     downloaders: Vec<Downloader<(String, String)>>,
 ) {
-    let mut jq = JobQueue::new();
+    let mut jq = JobQueue::new(10);
     loop {
         let mut cont = true;
         rx.try_reply_once(|command| {
