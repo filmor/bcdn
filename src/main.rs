@@ -5,8 +5,8 @@ mod util;
 
 use config::Config;
 
-use hyper::Error;
 use clap::{Arg, ArgMatches, Command};
+use hyper::Error;
 use std::fs;
 use std::path::Path;
 
@@ -17,14 +17,17 @@ fn main() -> Result<(), Error> {
 
     pretty_env_logger::init();
     let m = Command::new("bcdn")
+        .arg_required_else_help(true)
         .subcommand(
             Command::new("cache")
+                .arg_required_else_help(true)
                 .subcommand(Command::new("run"))
                 .subcommand(Command::new("install"))
                 .subcommand(Command::new("clean")),
         )
         .subcommand(
             Command::new("proxy")
+                .arg_required_else_help(true)
                 .subcommand(Command::new("run"))
                 .subcommand(Command::new("install")),
         )

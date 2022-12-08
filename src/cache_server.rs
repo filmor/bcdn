@@ -1,23 +1,25 @@
+use cache::{Cache, CacheResult};
 use std::{collections::HashMap, sync::Arc};
 
 use crate::config::Config;
 
 mod cache;
 mod download;
-use axum::routing::get;
-use axum::extract::{State, Path, FromRef};
-use axum::response::{IntoResponse, Redirect, Response};
-use cache::{Cache, CacheResult};
+use axum::{
+    extract::{FromRef, Path, State},
+    http::StatusCode,
+    response::{IntoResponse, Redirect, Response},
+    routing::get,
+};
 use hyper::Error;
 use std::net::ToSocketAddrs;
-use axum::http::StatusCode;
 
 use self::download::DownloadPool;
 
 #[derive(Clone)]
 struct AppState {
     caches: Arc<HashMap<String, Cache>>,
-    pool: Arc<DownloadPool>
+    pool: Arc<DownloadPool>,
 }
 
 impl FromRef<AppState> for Arc<DownloadPool> {
@@ -43,13 +45,13 @@ pub async fn run(config: Config, _matches: &clap::ArgMatches) -> Result<(), Erro
             .entries
             .iter()
             .map(|(k, _v)| (k.clone(), Cache::new(k, &config).unwrap()))
-            .collect()
+            .collect(),
     );
     let pool = Arc::new(DownloadPool::new(&config));
 
     let app = axum::Router::new()
         .route("/c/:name/f/:filename", get(data))
-        .with_state(AppState{caches, pool});
+        .with_state(AppState { caches, pool });
 
     axum::Server::bind(&bind)
         .serve(app.into_make_service())
@@ -89,7 +91,11 @@ async fn data(
             Redirect::temporary(&redirect.to_string()).into_response()
         }
         CacheResult::Ok(digest) => {
-            (StatusCode::NOT_IMPLEMENTED, digest.get_file_path().to_string_lossy().to_string()).into_response()
+            (
+                StatusCode::NOT_IMPLEMENTED,
+                digest.get_file_path().to_string_lossy().to_string(),
+            )
+                .into_response()
             /*
             let f = NamedFile::open(digest.get_file_path())
                 .unwrap()
