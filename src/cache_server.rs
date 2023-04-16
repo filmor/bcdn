@@ -36,7 +36,7 @@ impl FromRef<AppState> for Arc<HashMap<String, Cache>> {
 
 #[tokio::main]
 pub async fn run(config: Config, _matches: &clap::ArgMatches) -> Result<(), Error> {
-    let bind = config.proxy.bind.to_socket_addrs().unwrap().next().unwrap();
+    let bind = config.cache.bind.to_socket_addrs().unwrap().next().unwrap();
 
     log::info!("Starting cache node at {:?}...", bind);
 
@@ -59,8 +59,7 @@ pub async fn run(config: Config, _matches: &clap::ArgMatches) -> Result<(), Erro
 }
 
 async fn data(
-    Path(name): Path<String>,
-    Path(filename): Path<String>,
+    Path((name, filename)): Path<(String, String)>,
     State(pool): State<Arc<DownloadPool>>,
     State(caches): State<Arc<HashMap<String, Cache>>>,
 ) -> Response {

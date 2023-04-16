@@ -4,8 +4,11 @@ use std::{
 };
 
 pub struct JobQueue<K: Clone + Eq + Hash, D> {
+    /// Which downloader (slot) is used by which key
     slots: Vec<Option<K>>,
+    /// Collection of all job states by key
     jobs: HashMap<K, Job<D>>,
+    /// Actual queue to order the loading
     queue: VecDeque<K>,
 }
 
@@ -25,24 +28,24 @@ impl<K: Clone + Eq + Hash, D> JobQueue<K, D> {
     }
 
     pub fn push(&mut self, key: K, data: D) {
-        unimplemented!()
-        /* self.jobs.entry(key).or_insert_with(|| {
+        // Is there already a job with this key => nothing to do (return?)
+        self.jobs.entry(key.clone()).or_insert_with(|| {
             self.queue.push_back(key);
             Job::Pending { data }
-        }); */
+        });
     }
     
     pub fn reset(&mut self, slot: usize) {
         
     }
 
+    /// Count the given slot as completed
     pub fn complete(&mut self, slot: usize) {
         
     }
 
     pub fn pop(&mut self, slot: usize) -> Option<(K, D)> {
         // TODO: Parameter: which slot is being used?
-        unimplemented!()
         /* self.queue.pop_front().map(|key| {
             let mut res = None;
             self.jobs.entry(key).and_modify(|val| {
@@ -52,6 +55,7 @@ impl<K: Clone + Eq + Hash, D> JobQueue<K, D> {
             });
             (key, res.unwrap())
         }) */
+        unimplemented!()
     }
 
     pub fn is_empty(&self) -> bool {

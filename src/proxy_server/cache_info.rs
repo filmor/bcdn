@@ -51,7 +51,8 @@ impl CacheInfo {
 
         let node = &self.nodes[dist.sample(&mut rng)];
 
-        let path = format!("c/v1/{}/f/{}", self.name, filename);
+        // TODO: Derive from actual path in cache server?
+        let path = format!("c/{}/f/{}", self.name, filename);
 
         Some(node.url.join(&path).unwrap())
     }

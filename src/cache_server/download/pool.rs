@@ -71,26 +71,24 @@ impl DownloadPool {
         DownloadState {}
     }
 
-    // pub async fn enqueue(&self, cache: &Cache, filename: &str) -> DownloadState {
-    //     let key = (cache.name.clone(), filename.to_owned());
-    //     log::info!("Enqueuing key {:?}", key);
-    //     let exists = {
-    //         self.jobs.read().await.contains_key(&key)
-    //     };
+    /* pub async fn enqueue(&self, cache: &Cache, filename: &str) -> DownloadState {
+        let key = (cache.name.clone(), filename.to_owned());
+        log::info!("Enqueuing key {:?}", key);
+        let exists = { self.jobs.read().await.contains_key(&key) };
 
-    //     if exists {
-    //         let state = self.jobs.read().await[&key].clone();
-    //         log::info!("Already in work");
-    //         let state_val = state.read().await.clone();
-    //         state_val
-    //     } else {
-    //         log::info!("Not enqueued yet, creating new state");
-    //         let state = Arc::new(RwLock::new(DownloadState::NotStarted));
-    //         self.jobs.write().await.insert(key, state.clone());
-    //         log::info!("Successfully written");
-    //         state.clone().read().await.clone()
-    //     }
-    // }
+        if exists {
+            let state = self.jobs.read().await[&key].clone();
+            log::info!("Already in work");
+            let state_val = state.read().await.clone();
+            state_val
+        } else {
+            log::info!("Not enqueued yet, creating new state");
+            let state = Arc::new(RwLock::new(DownloadState::NotStarted));
+            self.jobs.write().await.insert(key, state.clone());
+            log::info!("Successfully written");
+            state.clone().read().await.clone()
+        }
+    } */
 }
 
 async fn update_task(
@@ -100,7 +98,10 @@ async fn update_task(
     let mut jq = JobQueue::new(10);
     loop {
         let mut cont = true;
-        rx.try_reply_once(|command| {
+
+        let states = join_all(downloaders.iter().map(|h| h.status())).await;
+
+        let _ = rx.try_reply_once(|command| {
             match command {
                 Command::Enqueue { key, url } => {
                     jq.push(key, url);
@@ -111,10 +112,7 @@ async fn update_task(
                 }
             };
             Reply::Done
-        })
-        .unwrap();
-
-        let states = join_all(downloaders.iter().map(|h| h.status())).await;
+        });
 
         // TODO: Handle Enqueue, Status and Quit
 

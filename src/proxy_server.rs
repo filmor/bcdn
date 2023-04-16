@@ -1,13 +1,15 @@
-use std::sync::Arc;
-use std::net::ToSocketAddrs;
 use crate::config::Config;
 mod cache_info;
-use cache_info::CacheInfo;
-use axum::{Router, Server};
-use axum::routing::get;
+
+use std::net::ToSocketAddrs;
+use std::sync::Arc;
+
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::response::{Redirect, Response, IntoResponse};
+use axum::response::{IntoResponse, Redirect, Response};
+use axum::routing::get;
+use axum::{Router, Server};
+use cache_info::CacheInfo;
 use hyper::Error;
 
 #[tokio::main]
@@ -23,12 +25,10 @@ pub async fn run(config: Config, _matches: &clap::ArgMatches) -> Result<(), Erro
             .route("/f/:filename", get(data))
             .with_state(Arc::new(cache_info));
 
-        app = app.nest(&format!("/{}", name), sub_router);
+        app = app.nest(&format!("/c/{}", name), sub_router);
     }
 
-    Server::bind(&bind)
-        .serve(app.into_make_service())
-        .await
+    Server::bind(&bind).serve(app.into_make_service()).await
 }
 
 async fn data(Path(path): Path<String>, State(cache_info): State<Arc<CacheInfo>>) -> Response {
